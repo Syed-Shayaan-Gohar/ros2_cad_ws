@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ============================================================
+       Leo Rover I — FLIR BlackflyS + SPAD512 mount
+       Paper-confirmed: 470mm above ground, 20° pitch down
+       ESTIMATED (not from paper text): x/y mast position, FLIR/SPAD
+       lateral separation — read off Fig. 2 schematic proportions,
+       not exact CAD/extrinsics numbers. Revise if you obtain
+       sensor_extrinsics.json from the full Zenodo dataset archive.
+       ============================================================ -->
+  <xacro:macro name="flir_spad_mount" params="link_prefix:='' flir_spad_z:=0.27217">
+
+    
+    <xacro:property name="flir_spad_pitch" value="0.349066"/>  <!-- 20 deg -->
+
+    <!-- ESTIMATE: mast set back from center, cameras centered/mirrored laterally -->
+    <xacro:property name="mount_x" value="-0.05"/>
+    <xacro:property name="cam_lateral_offset" value="0.03"/>
+
+    <link name="${link_prefix}flir_frame">
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+      </inertial>
+    </link>
+    <link name="${link_prefix}flir_optical_frame"/>
+    <link name="${link_prefix}spad_frame">
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+      </inertial>
+    </link>
+    <link name="${link_prefix}spad_optical_frame"/>
+
+    <joint name="${link_prefix}flir_joint" type="fixed">
+      <origin xyz="${mount_x} ${cam_lateral_offset} ${flir_spad_z}" rpy="0 ${flir_spad_pitch} 0"/>
+      <parent link="${link_prefix}base_link"/>
+      <child link="${link_prefix}flir_frame"/>
+    </joint>
+
+    <gazebo reference="${link_prefix}flir_joint">
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+    <joint name="${link_prefix}flir_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-pi/2} 0.0 ${-pi/2}"/>
+      <parent link="${link_prefix}flir_frame"/>
+      <child link="${link_prefix}flir_optical_frame"/>
+    </joint>
+
+    <joint name="${link_prefix}spad_joint" type="fixed">
+      <origin xyz="${mount_x} ${-cam_lateral_offset} ${flir_spad_z}" rpy="0 ${flir_spad_pitch} 0"/>
+      <parent link="${link_prefix}base_link"/>
+      <child link="${link_prefix}spad_frame"/>
+    </joint>
+
+    <gazebo reference="${link_prefix}spad_joint">
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+    <joint name="${link_prefix}spad_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-pi/2} 0.0 ${-pi/2}"/>
+      <parent link="${link_prefix}spad_frame"/>
+      <child link="${link_prefix}spad_optical_frame"/>
+    </joint>
+
+    <!-- FLIR BlackflyS — Table II: 720x540, 21.6°x12.3° FoV, 8-bit
+         NOTE: no distortion coefficients from paper Table II (those live in
+         camera_intrinsics.json in the full dataset) — omitted here, not zero. -->
+    <gazebo reference="${link_prefix}flir_frame">
+      <sensor name="flir_camera" type="camera">
+        <camera name="flir">
+          <horizontal_fov>0.37700</horizontal_fov>  <!-- 21.6 deg -->
+          <image>
+            <width>720</width>
+            <height>540</height>
+            <format>L8</format>  <!-- monochrome, per paper -->
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>300</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <topic>${link_prefix}flir/image_raw</topic>
+        <gz_frame_id>${link_prefix}flir_optical_frame</gz_frame_id>
+      </sensor>
+    </gazebo>
+
+    <!-- SPAD512 — APPROXIMATED as a regular camera sensor.
+         Gazebo has no native single-photon/binary-frame sensor plugin.
+         Table II: 512x512, 35.5°x35.5° FoV (square). True 1-bit binary-frame
+         behavior is NOT simulated — this is a stand-in monochrome camera only. -->
+    <gazebo reference="${link_prefix}spad_frame">
+      <sensor name="spad_camera" type="camera">
+        <camera name="spad">
+          <horizontal_fov>0.61959</horizontal_fov>  <!-- 35.5 deg -->
+          <image>
+            <width>512</width>
+            <height>512</height>
+            <format>L8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>300</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <topic>${link_prefix}spad/image_raw</topic>
+        <gz_frame_id>${link_prefix}spad_optical_frame</gz_frame_id>
+      </sensor>
+    </gazebo>
+
+  </xacro:macro>
+
+
+  <!-- ============================================================
+       Leo Rover II — ZED2 stereo mount
+       Paper-confirmed: 550mm above ground, 25° pitch down, 120mm baseline
+       ESTIMATED: x/y mast position (see note above)
+       ============================================================ -->
+  <xacro:macro name="zed2_mount" params="link_prefix:=''">
+
+    <!-- Height above base_link = 0.550 (ground) - 0.19783 (base_link height) = 0.35217 -->
+    <xacro:property name="zed2_z" value="0.35217"/>
+    <xacro:property name="zed2_pitch" value="0.436332"/>  <!-- 25 deg -->
+    <xacro:property name="zed2_mount_x" value="-0.05"/>   <!-- ESTIMATE -->
+    <xacro:property name="zed2_half_baseline" value="0.060"/>  <!-- 120mm baseline, exact from Table II -->
+
+    <link name="${link_prefix}zed2_frame">
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+      </inertial>
+    </link>
+    <link name="${link_prefix}zed2_left_frame">
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+      </inertial>
+    </link>
+    <link name="${link_prefix}zed2_left_optical_frame"/>
+    <link name="${link_prefix}zed2_right_frame">
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+      </inertial>
+    </link>
+    <link name="${link_prefix}zed2_right_optical_frame"/>
+
+    <!-- Central mount frame -->
+    <joint name="${link_prefix}zed2_joint" type="fixed">
+      <origin xyz="${zed2_mount_x} 0 ${zed2_z}" rpy="0 ${zed2_pitch} 0"/>
+      <parent link="${link_prefix}base_link"/>
+      <child link="${link_prefix}zed2_frame"/>
+    </joint>
+
+    <gazebo reference="${link_prefix}zed2_joint">
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+    <!-- Left eye -->
+    <joint name="${link_prefix}zed2_left_joint" type="fixed">
+      <origin xyz="0 ${zed2_half_baseline} 0" rpy="0 0 0"/>
+      <parent link="${link_prefix}zed2_frame"/>
+      <child link="${link_prefix}zed2_left_frame"/>
+    </joint>
+
+    <gazebo reference="${link_prefix}zed2_left_joint">
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+    <joint name="${link_prefix}zed2_left_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-pi/2} 0.0 ${-pi/2}"/>
+      <parent link="${link_prefix}zed2_left_frame"/>
+      <child link="${link_prefix}zed2_left_optical_frame"/>
+    </joint>
+
+    <!-- Right eye -->
+    <joint name="${link_prefix}zed2_right_joint" type="fixed">
+      <origin xyz="0 ${-zed2_half_baseline} 0" rpy="0 0 0"/>
+      <parent link="${link_prefix}zed2_frame"/>
+      <child link="${link_prefix}zed2_right_frame"/>
+    </joint>
+
+    <gazebo reference="${link_prefix}zed2_right_joint">
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+    <joint name="${link_prefix}zed2_right_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-pi/2} 0.0 ${-pi/2}"/>
+      <parent link="${link_prefix}zed2_right_frame"/>
+      <child link="${link_prefix}zed2_right_optical_frame"/>
+    </joint>
+
+    <!-- ZED2 — Table II: 640x360 per eye, 100°x70° FoV, 8-bit RGB
+         NOTE: no distortion coefficients from paper Table II — omitted, not zero. -->
+    <!-- NOTE: declaration order swapped (right now declared before left) vs.
+         the original file, as a controlled test of whether XML declaration
+         order drives the left/right rate asymmetry. Topics and gz_frame_id
+         values are untouched — only the block order changed. -->
+    <gazebo reference="${link_prefix}zed2_right_frame">
+      <sensor name="zed2_right_camera" type="camera">
+        <camera name="zed2_right">
+          <horizontal_fov>1.74533</horizontal_fov>  <!-- 100 deg -->
+          <image>
+            <width>640</width>
+            <height>360</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>300</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <topic>${link_prefix}zed2/right/image_raw</topic>
+        <gz_frame_id>${link_prefix}zed2_right_optical_frame</gz_frame_id>
+      </sensor>
+    </gazebo>
+
+    <gazebo reference="${link_prefix}zed2_left_frame">
+      <sensor name="zed2_left_camera" type="camera">
+        <camera name="zed2_left">
+          <horizontal_fov>1.74533</horizontal_fov>  <!-- 100 deg -->
+          <image>
+            <width>640</width>
+            <height>360</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>300</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <topic>${link_prefix}zed2/left/image_raw</topic>
+        <gz_frame_id>${link_prefix}zed2_left_optical_frame</gz_frame_id>
+      </sensor>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>

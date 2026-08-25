@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="leo_model1_cad_flir_spad">
+
+  <!-- ============================================================
+       Selectable robot_variant wrapper for spawn_robot.launch.py:
+       the hand-built CAD rover (leo_model1_cad_urdf.xacro) plus the
+       FLIR/SPAD sensor mount macro from sensor_mounts.xacro.
+
+       flir_spad_z is overridden below (0.29012) to match THIS
+       rover's own base_link-to-ground clearance (~0.1799m, derived
+       from its own joint chain + wheel radius), rather than the
+       0.19783m clearance baked into sensor_mounts.xacro's default,
+       which was calibrated for the original cloned rover.
+
+       NOTE: robot_ns / multi-robot namespacing is NOT wired through
+       leo_model1_cad_urdf.xacro's link names (they're hardcoded,
+       e.g. "base_link" not "${robot_ns}_base_link"). This variant
+       works for single-robot spawns (robot_ns=""); extending it to
+       support namespacing would require renaming every link/joint
+       in the base CAD xacro, not done here.
+       ============================================================ -->
+
+  <!-- NOTE: confirm this matches the actual filename on disk in
+       leo_description_cad/urdf/. Your project has had this
+       filename ambiguous between leo_model1_cad.urdf.xacro and
+       leo_model1_cad_urdf.xacro at different points. -->
+  <xacro:include filename="$(find leo_description_cad)/urdf/leo_model1_cad.urdf.xacro"/>
+
+  <!-- Copy of the shared sensor_mounts.xacro into this package, so
+       leo_description_cad doesn't need a build/runtime dependency
+       on the leo_description package just for this macro. -->
+  <xacro:include filename="$(find leo_description_cad)/urdf/sensor_mounts.xacro"/>
+
+  <xacro:flir_spad_mount link_prefix="" flir_spad_z="0.29012"/>
+
+</robot>
